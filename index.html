@@ -182,23 +182,31 @@ function startListening() {
             event.results[event.results.length - 1][0]
             .transcript.toLowerCase().trim();
 
+        const normalized = result
+            .replace(/[^a-z0-9 ]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
         heard.innerText = "HEARD: " + result;
 
         if (!activated) {
 
-            if (result.includes("hey tagboard")) {
+            const wakeWordHeard =
+                normalized.includes("tagboard") ||
+                normalized.includes("tag board");
+
+            if (wakeWordHeard) {
 
                 activated = true;
                 setStatus("YES, I'M LISTENING");
 
                 speak("Yes, I am listening");
-
             }
 
             return;
         }
 
-        if (result.includes("initiate active mode")) {
+        if (normalized.includes("initiate active mode")) {
 
             setStatus("ACTIVE MODE REQUESTED");
 
@@ -207,7 +215,7 @@ function startListening() {
             activated = false;
         }
 
-        else if (result.includes("terminate active mode")) {
+        else if (normalized.includes("terminate active mode")) {
 
             setStatus("ACTIVE MODE STOP REQUESTED");
 

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HEY TAGBOARD | JARVIS</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle, #102c48, #030914 75%);
+    color: #00eaff;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container {
+    width: 92%;
+    max-width: 450px;
+    padding: 25px;
+}
+
+h1 {
+    letter-spacing: 5px;
+    font-size: 27px;
+    text-shadow: 0 0 15px #00eaff;
+}
+
+.subtitle {
+    color: #8baeba;
+    letter-spacing: 3px;
+    font-size: 11px;
+}
+
+.circle {
+    width: 210px;
+    height: 210px;
+    border: 3px solid #00eaff;
+    border-radius: 50%;
+    margin: 45px auto 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 0 20px #00eaff,
+                inset 0 0 25px #00eaff;
+    transition: 0.3s;
+}
+
+.circle.active {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 0 15px #00eaff,
+                    inset 0 0 15px #00eaff;
+    }
+    50% {
+        box-shadow: 0 0 45px #00eaff,
+                    inset 0 0 40px #00eaff;
+    }
+}
+
+.core {
+    font-size: 35px;
+    font-weight: bold;
+    letter-spacing: 4px;
+}
+
+#status {
+    color: white;
+    font-size: 17px;
+    min-height: 25px;
+}
+
+#heard {
+    color: #8baeba;
+    min-height: 24px;
+    margin-top: 15px;
+}
+
+button {
+    width: 85%;
+    padding: 15px;
+    margin: 10px;
+    border: 1px solid #00eaff;
+    border-radius: 30px;
+    background: transparent;
+    color: #00eaff;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+button:active {
+    background: #00eaff;
+    color: #030914;
+}
+
+.footer {
+    margin-top: 35px;
+    color: #547786;
+    font-size: 10px;
+    letter-spacing: 2px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>HEY TAGBOARD</h1>
+    <div class="subtitle">PERSONAL AI ASSISTANT</div>
+
+    <div class="circle" id="circle">
+        <div class="core">T</div>
+    </div>
+
+    <div id="status">SYSTEM STANDBY</div>
+    <div id="heard">Waiting for activation...</div>
+
+    <button onclick="startListening()">START LISTENING</button>
+    <button onclick="stopListening()">STOP SYSTEM</button>
+
+    <div class="footer">
+        TAGBOARD AI SYSTEM • VERSION 1.0
+    </div>
+
+</div>
+
+<script>
+
+const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+let recognition;
+let listening = false;
+let activated = false;
+let restarting = false;
+
+const status = document.getElementById("status");
+const heard = document.getElementById("heard");
+const circle = document.getElementById("circle");
+
+function setStatus(message) {
+    status.innerText = message;
+}
+
+function startListening() {
+
+    if (!SpeechRecognition) {
+        setStatus("VOICE RECOGNITION NOT SUPPORTED");
+        return;
+    }
+
+    if (listening) return;
+
+    recognition = new SpeechRecognition();
+
+    recognition.lang = "en-IN";
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+        listening = true;
+        circle.classList.add("active");
+        setStatus("LISTENING FOR HEY TAGBOARD");
+    };
+
+    recognition.onresult = (event) => {
+
+        const result =
+            event.results[event.results.length - 1][0]
+            .transcript.toLowerCase().trim();
+
+        heard.innerText = "HEARD: " + result;
+
+        if (!activated) {
+
+            if (result.includes("hey tagboard")) {
+
+                activated = true;
+                setStatus("YES, I'M LISTENING");
+
+                speak("Yes, I am listening");
+
+            }
+
+            return;
+        }
+
+        if (result.includes("initiate active mode")) {
+
+            setStatus("ACTIVE MODE REQUESTED");
+
+            speak("Active mode requested");
+
+            activated = false;
+        }
+
+        else if (result.includes("terminate active mode")) {
+
+            setStatus("ACTIVE MODE STOP REQUESTED");
+
+            speak("Active mode stop requested");
+
+            activated = false;
+        }
+    };
+
+    recognition.onerror = (event) => {
+        setStatus("VOICE ERROR: " + event.error);
+    };
+
+    recognition.onend = () => {
+
+        listening = false;
+
+        if (restarting) {
+            return;
+        }
+
+        if (recognition) {
+            setTimeout(() => {
+                if (recognition && !listening && !restarting) {
+                    try {
+                        recognition.start();
+                    } catch (e) {}
+                }
+            }, 1000);
+        }
+    };
+
+    restarting = false;
+
+    try {
+        recognition.start();
+    } catch (error) {
+        setStatus("COULD NOT START MICROPHONE");
+    }
+}
+
+function stopListening() {
+
+    restarting = true;
+    activated = false;
+
+    if (recognition) {
+        recognition.stop();
+    }
+
+    listening = false;
+
+    circle.classList.remove("active");
+
+    setStatus("SYSTEM STOPPED");
+    heard.innerText = "Microphone inactive";
+}
+
+function speak(message) {
+
+    const speech = new SpeechSynthesisUtterance(message);
+
+    speech.lang = "en-IN";
+    speech.rate = 0.95;
+
+    speechSynthesis.speak(speech);
+}
+
+</script>
+
+</body>
+</html>

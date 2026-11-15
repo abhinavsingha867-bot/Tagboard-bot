@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>HEY TAGBOARD | JARVIS</title>
 
 <style>
+
 * {
     box-sizing: border-box;
 }
@@ -63,6 +66,7 @@ h1 {
         box-shadow: 0 0 15px #00eaff,
                     inset 0 0 15px #00eaff;
     }
+
     50% {
         box-shadow: 0 0 45px #00eaff,
                     inset 0 0 40px #00eaff;
@@ -83,8 +87,9 @@ h1 {
 
 #heard {
     color: #8baeba;
-    min-height: 24px;
+    min-height: 40px;
     margin-top: 15px;
+    overflow-wrap: anywhere;
 }
 
 button {
@@ -110,6 +115,7 @@ button:active {
     font-size: 10px;
     letter-spacing: 2px;
 }
+
 </style>
 </head>
 
@@ -118,163 +124,89 @@ button:active {
 <div class="container">
 
     <h1>HEY TAGBOARD</h1>
-    <div class="subtitle">PERSONAL AI ASSISTANT</div>
+
+    <div class="subtitle">
+        PERSONAL AI ASSISTANT
+    </div>
 
     <div class="circle" id="circle">
         <div class="core">T</div>
     </div>
 
     <div id="status">SYSTEM STANDBY</div>
-    <div id="heard">Waiting for activation...</div>
 
-    <button onclick="startListening()">START LISTENING</button>
-    <button onclick="stopListening()">STOP SYSTEM</button>
+    <div id="heard">
+        Waiting for activation...
+    </div>
+
+    <button onclick="startListening()">
+        START LISTENING
+    </button>
+
+    <button onclick="stopListening()">
+        STOP SYSTEM
+    </button>
 
     <div class="footer">
-        TAGBOARD AI SYSTEM • VERSION 1.0
+        TAGBOARD AI SYSTEM • VERSION 2.0
     </div>
 
 </div>
 
 <script>
 
+// SPEECH RECOGNITION SUPPORT
+
 const SpeechRecognition =
     window.SpeechRecognition ||
     window.webkitSpeechRecognition;
 
-let recognition;
+
+// VARIABLES
+
+let recognition = null;
+
+let shouldListen = false;
 let listening = false;
 let activated = false;
-let restarting = false;
+
+let restartTimer = null;
+let recentFinal = "";
 
 const status = document.getElementById("status");
 const heard = document.getElementById("heard");
 const circle = document.getElementById("circle");
 
+
+// STATUS FUNCTION
+
 function setStatus(message) {
     status.innerText = message;
 }
 
-function startListening() {
 
-    if (!SpeechRecognition) {
-        setStatus("VOICE RECOGNITION NOT SUPPORTED");
+// NORMALIZE RECOGNIZED WORDS
+
+function normalize(text) {
+
+    return text
+        .toLowerCase()
+        .replace(/[^a-z0-9 ]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+}
+
+
+// SPEECH OUTPUT
+
+function speak(message) {
+
+    if (!("speechSynthesis" in window)) {
         return;
     }
 
-    if (listening) return;
-
-    recognition = new SpeechRecognition();
-
-    recognition.lang = "en-IN";
-    recognition.continuous = true;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-        listening = true;
-        circle.classList.add("active");
-        setStatus("LISTENING FOR HEY TAGBOARD");
-    };
-
-    recognition.onresult = (event) => {
-
-        const result =
-            event.results[event.results.length - 1][0]
-            .transcript.toLowerCase().trim();
-
-        const normalized = result
-            .replace(/[^a-z0-9 ]/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-
-        heard.innerText = "HEARD: " + result;
-
-        if (!activated) {
-
-            const wakeWordHeard =
-                normalized.includes("tagboard") ||
-                normalized.includes("tag board");
-
-            if (wakeWordHeard) {
-
-                activated = true;
-                setStatus("YES, I'M LISTENING");
-
-                speak("Yes, I am listening");
-            }
-
-            return;
-        }
-
-        if (normalized.includes("initiate active mode")) {
-
-            setStatus("ACTIVE MODE REQUESTED");
-
-            speak("Active mode requested");
-
-            activated = false;
-        }
-
-        else if (normalized.includes("terminate active mode")) {
-
-            setStatus("ACTIVE MODE STOP REQUESTED");
-
-            speak("Active mode stop requested");
-
-            activated = false;
-        }
-    };
-
-    recognition.onerror = (event) => {
-        setStatus("VOICE ERROR: " + event.error);
-    };
-
-    recognition.onend = () => {
-
-        listening = false;
-
-        if (restarting) {
-            return;
-        }
-
-        if (recognition) {
-            setTimeout(() => {
-                if (recognition && !listening && !restarting) {
-                    try {
-                        recognition.start();
-                    } catch (e) {}
-                }
-            }, 1000);
-        }
-    };
-
-    restarting = false;
-
-    try {
-        recognition.start();
-    } catch (error) {
-        setStatus("COULD NOT START MICROPHONE");
-    }
-}
-
-function stopListening() {
-
-    restarting = true;
-    activated = false;
-
-    if (recognition) {
-        recognition.stop();
-    }
-
-    listening = false;
-
-    circle.classList.remove("active");
-
-    setStatus("SYSTEM STOPPED");
-    heard.innerText = "Microphone inactive";
-}
-
-function speak(message) {
+    speechSynthesis.cancel();
 
     const speech = new SpeechSynthesisUtterance(message);
 
@@ -282,7 +214,267 @@ function speak(message) {
     speech.rate = 0.95;
 
     speechSynthesis.speak(speech);
+
 }
+
+
+// PROCESS FINAL SPEECH
+
+function processSpeech(text) {
+
+    const normalized = normalize(text);
+
+    if (!normalized) {
+        return;
+    }
+
+    recentFinal = (recentFinal + " " + normalized)
+        .trim()
+        .slice(-120);
+
+    // WAKE WORD DETECTION
+
+    if (!activated) {
+
+        const wakeWordHeard =
+            /\btag\s*board\b/.test(recentFinal) ||
+            /\btagboard\b/.test(recentFinal);
+
+        if (wakeWordHeard) {
+
+            activated = true;
+
+            recentFinal = "";
+
+            setStatus("YES, I'M LISTENING");
+
+            speak("Yes, I am listening");
+
+        }
+
+        return;
+    }
+
+    // INITIATE ACTIVE MODE
+
+    if (/\binitiate active mode\b/.test(normalized)) {
+
+        setStatus("ACTIVE MODE REQUESTED");
+
+        speak("Active mode requested");
+
+        activated = false;
+        recentFinal = "";
+
+    }
+
+    // TERMINATE ACTIVE MODE
+
+    else if (/\bterminate active mode\b/.test(normalized)) {
+
+        setStatus("ACTIVE MODE STOP REQUESTED");
+
+        speak("Active mode stop requested");
+
+        activated = false;
+        recentFinal = "";
+
+    }
+
+}
+
+
+// START LISTENING
+
+function startListening() {
+
+    if (!SpeechRecognition) {
+
+        setStatus("VOICE RECOGNITION NOT SUPPORTED");
+
+        return;
+    }
+
+    if (shouldListen) {
+        return;
+    }
+
+    shouldListen = true;
+    activated = false;
+    recentFinal = "";
+
+    clearTimeout(restartTimer);
+
+    recognition = new SpeechRecognition();
+
+    recognition.lang = "en-IN";
+
+    recognition.continuous = true;
+
+    // SHOW WORDS WHILE SPEAKING
+    recognition.interimResults = true;
+
+    recognition.maxAlternatives = 1;
+
+
+    // WHEN LISTENING STARTS
+
+    recognition.onstart = () => {
+
+        listening = true;
+
+        circle.classList.add("active");
+
+        setStatus("LISTENING FOR HEY TAGBOARD");
+
+    };
+
+
+    // WHEN SPEECH IS DETECTED
+
+    recognition.onresult = (event) => {
+
+        let displayText = "";
+
+        for (
+            let i = event.resultIndex;
+            i < event.results.length;
+            i++
+        ) {
+
+            const transcript =
+                event.results[i][0].transcript;
+
+            displayText += transcript + " ";
+
+            // PROCESS ONLY COMPLETED SPEECH
+
+            if (event.results[i].isFinal) {
+
+                processSpeech(transcript);
+
+            }
+
+        }
+
+        // DISPLAY RECOGNIZED WORDS
+
+        if (displayText.trim()) {
+
+            heard.innerText =
+                "HEARD: " + displayText.trim();
+
+        }
+
+    };
+
+
+    // ERROR HANDLING
+
+    recognition.onerror = (event) => {
+
+        setStatus("VOICE ERROR: " + event.error);
+
+        if (
+            event.error === "not-allowed" ||
+            event.error === "service-not-allowed"
+        ) {
+
+            shouldListen = false;
+
+            listening = false;
+
+            circle.classList.remove("active");
+
+        }
+
+    };
+
+
+    // AUTOMATIC RESTART
+
+    recognition.onend = () => {
+
+        listening = false;
+
+        if (!shouldListen) {
+            return;
+        }
+
+        setStatus("RECONNECTING MICROPHONE...");
+
+        restartTimer = setTimeout(() => {
+
+            if (shouldListen && !listening) {
+
+                try {
+
+                    recognition.start();
+
+                }
+
+                catch (error) {
+
+                    setStatus("RESTARTING VOICE SYSTEM...");
+
+                }
+
+            }
+
+        }, 1000);
+
+    };
+
+
+    // START MICROPHONE
+
+    try {
+
+        recognition.start();
+
+    }
+
+    catch (error) {
+
+        shouldListen = false;
+
+        setStatus("COULD NOT START MICROPHONE");
+
+    }
+
+}
+
+
+// STOP LISTENING
+
+function stopListening() {
+
+    shouldListen = false;
+
+    listening = false;
+
+    activated = false;
+
+    recentFinal = "";
+
+    clearTimeout(restartTimer);
+
+    if (recognition) {
+
+        recognition.stop();
+
+    }
+
+    circle.classList.remove("active");
+
+    setStatus("SYSTEM STOPPED");
+
+    heard.innerText = "Microphone inactive";
+
+}
+
+
+// END OF PROGRAM
 
 </script>
 
